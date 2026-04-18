@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>中文听写（对照书写版）</title>
+
+<style>
+body {
+  margin: 0;
+  font-family: -apple-system;
+  background: #f5f5f5;
+  text-align: center;
+}
+
+#top {
+  padding: 10px;
+  background: white;
+}
+
+textarea {
+  width: 90%;
+  height: 80px;
+  font-size: 18px;
+}
+
+button {
+  font-size: 18px;
+  padding: 10px 14px;
+  margin: 6px;
+  border-radius: 10px;
+  border: none;
+  background: #007AFF;
+  color: white;
+}
+
+#status {
+  font-size: 20px;
+  margin: 10px;
+}
+
+/* 对照区域 */
+#container {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px;
+}
+
+#modelBox {
+  flex: 1;
+  background: white;
+  border-radius: 12px;
+  border: 2px solid #ddd;
+  height: 200px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 80px;
+}
+
+canvas {
+  flex: 1;
+  background: white;
+  border-radius: 12px;
+  border: 2px solid #333;
+  touch-action: none;
+  height: 200px;
+}
+</style>
+</head>
+
+<body>
+
+<div id="top">
+  <h2>中文听写（对照书写版）</h2>
+
+  <!-- ⭐ 输入框 -->
+  <textarea id="wordInput" placeholder="输入词语：苹果 香蕉 学校"></textarea><br>
+
+  <button onclick="start()">开始</button>
+</div>
+
+<div id="status"></div>
+
+<div id="container">
+  <div id="modelBox"></div>
+  <canvas id="canvas"></canvas>
+</div>
+
+<br>
+
+<button onclick="showAnswer()">显示标准字</button>
+<button onclick="repeat()">再听一次</button>
+<button onclick="next()">下一个</button>
+<button onclick="clearCanvas()">清空</button>
+
+<script>
+let words = [];
+let index = 0;
+let currentWord = "";
+
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+function resize() {
+  canvas.width = window.innerWidth * 0.45;
+  canvas.height = 200;
+}
+resize();
+window.onresize = resize;
+
+/* ===== 手写 ===== */
+let drawing = false;
+
+canvas.addEventListener("touchstart", () => drawing = true);
+
+canvas.addEventListener("touchend", () => {
+  drawing = false;
+  ctx.beginPath();
+});
+
+canvas.addEventListener("touchmove", e => {
+  e.preventDefault();
+  if (!drawing) return;
+
+  const rect = canvas.getBoundingClientRect();
+  const t = e.touches[0];
+
+  const x = t.clientX - rect.left;
+  const y = t.clientY - rect.top;
+
+  ctx.lineWidth = 4;
+  ctx.lineCap = "round";
+
+  ctx.lineTo(x, y);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+});
+
+/* ===== 语音 ===== */
+function speak(text) {
+  speechSynthesis.cancel();
+
+  let u1 = new SpeechSynthesisUtterance(text);
+  let u2 = new SpeechSynthesisUtterance(text);
+  let u3 = new SpeechSynthesisUtterance(text);
+
+  u1.lang = u2.lang = u3.lang = "zh-CN";
+  u1.rate = u2.rate = u3.rate = 0.8;
+
+  speechSynthesis.speak(u1);
+  setTimeout(() => speechSynthesis.speak(u2), 1500);
+  setTimeout(() => speechSynthesis.speak(u3), 3500);
+}
+
+/* ===== 开始（⭐关键修改） ===== */
+function start() {
+  let input = document.getElementById("wordInput").value;
+
+  words = input.split(/[\s,，]+/).filter(w => w);
+
+  // ⭐ 隐藏输入区（防止偷看）
+  document.getElementById("top").style.display = "none";
+
+  index = 0;
+  nextWord();
+}
+
+/* ===== 下一题 ===== */
+function nextWord() {
+  if (index >= words.length) {
+    document.getElementById("status").innerText = "全部完成 🎉";
+    return;
+  }
+
+  currentWord = words[index];
+
+  document.getElementById("status").innerText =
+    "第 " + (index + 1) + " 个词（" + currentWord.length + "字）";
+
+  document.getElementById("modelBox").innerText = "";
+
+  clearCanvas();
+  speak(currentWord);
+}
+
+/* ===== 显示答案 ===== */
+function showAnswer() {
+  document.getElementById("modelBox").innerText = currentWord;
+}
+
+/* ===== 控制 ===== */
+function next() {
+  index++;
+  nextWord();
+}
+
+function repeat() {
+  speak(currentWord);
+}
+
+function clearCanvas() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+</script>
+
+</body>
+</html>
