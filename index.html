@@ -1,210 +1,406 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh">
 <head>
-<meta charset="UTF-8">
-<title>中文听写（对照书写版）</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+<title>中文默字练习（iPad手写版）</title>
 
 <style>
-body {
-  margin: 0;
-  font-family: -apple-system;
-  background: #f5f5f5;
-  text-align: center;
+
+body{
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;
+    text-align:center;
+    background:#f5f5f5;
+    padding:20px;
+    margin:0;
 }
 
-#top {
-  padding: 10px;
-  background: white;
+h1{
+    font-size:42px;
+    margin-bottom:20px;
 }
 
-textarea {
-  width: 90%;
-  height: 80px;
-  font-size: 18px;
+textarea{
+    width:90%;
+    height:120px;
+    font-size:28px;
+    padding:15px;
+    border-radius:16px;
+    border:2px solid #ccc;
 }
 
-button {
-  font-size: 18px;
-  padding: 10px 14px;
-  margin: 6px;
-  border-radius: 10px;
-  border: none;
-  background: #007AFF;
-  color: white;
+button{
+    font-size:28px;
+    padding:18px 28px;
+    margin:10px;
+    border:none;
+    border-radius:18px;
+    background:#007aff;
+    color:white;
 }
 
-#status {
-  font-size: 20px;
-  margin: 10px;
+button:active{
+    transform:scale(0.97);
 }
 
-/* 对照区域 */
-#container {
-  display: flex;
-  justify-content: center;
-  gap: 10px;
-  padding: 10px;
+#practiceArea{
+    display:none;
+    margin-top:20px;
 }
 
-#modelBox {
-  flex: 1;
-  background: white;
-  border-radius: 12px;
-  border: 2px solid #ddd;
-  height: 200px;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  font-size: 80px;
+#promptArea{
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    gap:100px;
+    margin-top:30px;
+    flex-wrap:wrap;
 }
 
-canvas {
-  flex: 1;
-  background: white;
-  border-radius: 12px;
-  border: 2px solid #333;
-  touch-action: none;
-  height: 200px;
+.bigWord{
+    font-size:48px;
+    width:420px;
+    height:320px;
+    background:white;
+    border-radius:20px;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    border:3px solid #ccc;
 }
+
+#canvasContainer{
+    position:relative;
+}
+
+canvas{
+    width:420px;
+    height:320px;
+    background:white;
+    border:3px solid #333;
+    border-radius:20px;
+    touch-action:none;
+}
+
+#currentIndex{
+    font-size:28px;
+    margin-top:10px;
+}
+
+#wrongWordsDisplay{
+    margin-top:30px;
+    font-size:36px;
+    color:red;
+    line-height:1.8;
+    white-space:pre-wrap;
+}
+
+#answerInput{
+    margin-top:30px;
+    font-size:42px;
+    width:300px;
+    padding:15px;
+    text-align:center;
+    border-radius:16px;
+    border:2px solid #aaa;
+}
+
+@media (max-width:1200px){
+
+    #promptArea{
+        flex-direction:column;
+        gap:40px;
+    }
+
+}
+
 </style>
 </head>
 
 <body>
 
-<div id="top">
-  <h2>中文听写（对照书写版）</h2>
+<h1>中文默字练习</h1>
 
-  <!-- ⭐ 输入框 -->
-  <textarea id="wordInput" placeholder="输入词语：苹果 香蕉 学校"></textarea><br>
+<div id="setupArea">
 
-  <button onclick="start()">开始</button>
-</div>
-
-<div id="status"></div>
-
-<div id="container">
-  <div id="modelBox"></div>
-  <canvas id="canvas"></canvas>
-</div>
+<textarea id="wordInput"
+placeholder="请输入词语，用空格、逗号、句号等分隔"></textarea>
 
 <br>
 
-<button onclick="showAnswer()">显示标准字</button>
-<button onclick="repeat()">再听一次</button>
-<button onclick="next()">下一个</button>
-<button onclick="clearCanvas()">清空</button>
+<button onclick="startPractice()">开始</button>
+
+</div>
+
+<div id="practiceArea">
+
+<div id="currentIndex"></div>
+
+<div id="promptArea">
+
+<div class="bigWord" id="targetWord"></div>
+
+<div id="canvasContainer">
+<canvas id="writingCanvas" width="420" height="320"></canvas>
+</div>
+
+</div>
+
+<div style="margin-top:25px;">
+
+<input id="answerInput" placeholder="输入你写的词">
+
+</div>
+
+<div>
+
+<button onclick="submitAnswer()">提交</button>
+
+<button onclick="repeatWord()">再念一次</button>
+
+<button onclick="recordWrongWord()">记录错字</button>
+
+<button onclick="showWrongWords()">显示错字</button>
+
+<button onclick="clearCanvas()">清空手写</button>
+
+<button onclick="resetAll()">Reset</button>
+
+</div>
+
+<div id="wrongWordsDisplay"></div>
+
+</div>
 
 <script>
-let words = [];
-let index = 0;
-let currentWord = "";
 
-const canvas = document.getElementById("canvas");
+let words = [];
+let currentIndex = 0;
+let currentWord = "";
+let wrongWords = [];
+
+const synth = window.speechSynthesis;
+
+function splitWords(text){
+
+    return text
+        .split(/[\s，。,；：！？、]+/)
+        .map(w => w.trim())
+        .filter(w => w.length > 0);
+
+}
+
+function speak(text){
+
+    synth.cancel();
+
+    const utter = new SpeechSynthesisUtterance(text);
+
+    utter.lang = "zh-CN";
+
+    utter.rate = 0.5;
+
+    synth.speak(utter);
+
+}
+
+function startPractice(){
+
+    const input = document.getElementById("wordInput").value;
+
+    words = splitWords(input);
+
+    if(words.length === 0){
+        alert("请输入词语");
+        return;
+    }
+
+    currentIndex = 0;
+
+    document.getElementById("setupArea").style.display = "none";
+
+    document.getElementById("practiceArea").style.display = "block";
+
+    loadCurrentWord();
+
+}
+
+function loadCurrentWord(){
+
+    if(currentIndex >= words.length){
+
+        document.getElementById("targetWord").innerText = "";
+
+        document.getElementById("currentIndex").innerText = "已完成";
+
+        return;
+    }
+
+    currentWord = words[currentIndex];
+
+    document.getElementById("targetWord").innerText = "";
+
+    document.getElementById("answerInput").value = "";
+
+    clearCanvas();
+
+    document.getElementById("currentIndex").innerText =
+        `第 ${currentIndex + 1} / ${words.length} 个`;
+
+    speak(currentWord);
+
+}
+
+function submitAnswer(){
+
+    const userAnswer =
+        document.getElementById("answerInput").value.trim();
+
+    document.getElementById("targetWord").innerText = currentWord;
+
+    currentIndex++;
+
+    setTimeout(() => {
+        loadCurrentWord();
+    }, 1500);
+
+}
+
+function repeatWord(){
+
+    speak(currentWord);
+
+}
+
+function recordWrongWord(){
+
+    if(!wrongWords.includes(currentWord)){
+        wrongWords.push(currentWord);
+    }
+
+}
+
+function showWrongWords(){
+
+    const area = document.getElementById("wrongWordsDisplay");
+
+    if(wrongWords.length === 0){
+
+        area.innerText = "暂无错字";
+
+    }else{
+
+        area.innerText =
+            "错字组：\n\n" + wrongWords.join("    ");
+
+    }
+
+}
+
+function resetAll(){
+
+    // 把当前错字组保存
+    const previousWrongWords = [...wrongWords];
+
+    // 输入框显示上一轮错字
+    document.getElementById("wordInput").value =
+        previousWrongWords.join(" ");
+
+    // 清空当前状态
+    words = [];
+    currentIndex = 0;
+    currentWord = "";
+
+    // 清空错字组（开始新一轮）
+    wrongWords = [];
+
+    document.getElementById("wrongWordsDisplay").innerText = "";
+
+    document.getElementById("setupArea").style.display = "block";
+
+    document.getElementById("practiceArea").style.display = "none";
+
+    synth.cancel();
+
+}
+
+const canvas = document.getElementById("writingCanvas");
 const ctx = canvas.getContext("2d");
 
-function resize() {
-  canvas.width = window.innerWidth * 0.45;
-  canvas.height = 200;
-}
-resize();
-window.onresize = resize;
+ctx.lineWidth = 8;
+ctx.lineCap = "round";
 
-/* ===== 手写 ===== */
 let drawing = false;
 
-canvas.addEventListener("touchstart", () => drawing = true);
+function getPos(e){
 
-canvas.addEventListener("touchend", () => {
-  drawing = false;
-  ctx.beginPath();
-});
+    const rect = canvas.getBoundingClientRect();
 
-canvas.addEventListener("touchmove", e => {
-  e.preventDefault();
-  if (!drawing) return;
+    if(e.touches){
 
-  const rect = canvas.getBoundingClientRect();
-  const t = e.touches[0];
+        return {
+            x:e.touches[0].clientX - rect.left,
+            y:e.touches[0].clientY - rect.top
+        };
 
-  const x = t.clientX - rect.left;
-  const y = t.clientY - rect.top;
+    }else{
 
-  ctx.lineWidth = 4;
-  ctx.lineCap = "round";
+        return {
+            x:e.clientX - rect.left,
+            y:e.clientY - rect.top
+        };
 
-  ctx.lineTo(x, y);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(x, y);
-});
+    }
 
-/* ===== 语音 ===== */
-function speak(text) {
-  speechSynthesis.cancel();
-
-  let u1 = new SpeechSynthesisUtterance(text);
-  let u2 = new SpeechSynthesisUtterance(text);
-  let u3 = new SpeechSynthesisUtterance(text);
-
-  u1.lang = u2.lang = u3.lang = "zh-CN";
-  u1.rate = u2.rate = u3.rate = 0.8;
-
-  speechSynthesis.speak(u1);
-  setTimeout(() => speechSynthesis.speak(u2), 1500);
-  setTimeout(() => speechSynthesis.speak(u3), 3500);
 }
 
-/* ===== 开始（⭐关键修改） ===== */
-function start() {
-  let input = document.getElementById("wordInput").value;
+function startDraw(e){
 
-  words = input.split(/[\s,，]+/).filter(w => w);
+    drawing = true;
 
-  // ⭐ 隐藏输入区（防止偷看）
-  document.getElementById("top").style.display = "none";
+    const pos = getPos(e);
 
-  index = 0;
-  nextWord();
+    ctx.beginPath();
+
+    ctx.moveTo(pos.x, pos.y);
+
 }
 
-/* ===== 下一题 ===== */
-function nextWord() {
-  if (index >= words.length) {
-    document.getElementById("status").innerText = "全部完成 🎉";
-    return;
-  }
+function draw(e){
 
-  currentWord = words[index];
+    if(!drawing) return;
 
-  document.getElementById("status").innerText =
-    "第 " + (index + 1) + " 个词（" + currentWord.length + "字）";
+    e.preventDefault();
 
-  document.getElementById("modelBox").innerText = "";
+    const pos = getPos(e);
 
-  clearCanvas();
-  speak(currentWord);
+    ctx.lineTo(pos.x, pos.y);
+
+    ctx.stroke();
+
 }
 
-/* ===== 显示答案 ===== */
-function showAnswer() {
-  document.getElementById("modelBox").innerText = currentWord;
+function endDraw(){
+
+    drawing = false;
+
 }
 
-/* ===== 控制 ===== */
-function next() {
-  index++;
-  nextWord();
+canvas.addEventListener("mousedown", startDraw);
+canvas.addEventListener("mousemove", draw);
+canvas.addEventListener("mouseup", endDraw);
+
+canvas.addEventListener("touchstart", startDraw);
+canvas.addEventListener("touchmove", draw);
+canvas.addEventListener("touchend", endDraw);
+
+function clearCanvas(){
+
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
 }
 
-function repeat() {
-  speak(currentWord);
-}
-
-function clearCanvas() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-}
 </script>
 
 </body>
